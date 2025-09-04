@@ -1,6 +1,12 @@
-// Mock AI service for generating ad variations
-// In a real implementation, this would call OpenAI API
+import OpenAI from 'openai'
 
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: import.meta.env.VITE_OPENAI_API_KEY || 'your-openai-api-key',
+  dangerouslyAllowBrowser: true,
+})
+
+// Mock variations as fallback
 const mockAdVariations = [
   {
     headline: "Transform Your Life Today!",
@@ -8,7 +14,7 @@ const mockAdVariations = [
     adText: "Ready to level up? This game-changing product will revolutionize your daily routine. Don't miss out on the future! 🚀 #Innovation #LifeHack",
     cta: "Shop Now",
     platform: "tiktok",
-    imageUrl: null // Will use product image
+    imageUrl: null
   },
   {
     headline: "The Secret Everyone's Talking About",
@@ -45,36 +51,119 @@ const mockAdVariations = [
 ]
 
 export const generateAdVariations = async (productData) => {
+  try {
+    // Check if OpenAI API key is available
+    if (!import.meta.env.VITE_OPENAI_API_KEY || import.meta.env.VITE_OPENAI_API_KEY === 'your-openai-api-key') {
+      console.warn('OpenAI API key not configured, using mock data')
+      return generateMockVariations(productData)
+    }
+
+    const systemPrompt = `You are an expert ad copywriter specializing in social media ads for TikTok and Instagram. 
+    
+    Your task is to create compelling ad variations that:
+    - Hook viewers in the first 3 seconds
+    - Use platform-specific language and trends
+    - Include relevant emojis and hashtags
+    - Have clear, action-oriented CTAs
+    - Match the platform's tone (TikTok: casual, trendy; Instagram: polished, aspirational)
+    
+    Return exactly 5 ad variations in JSON format with this structure:
+    {
+      "variations": [
+        {
+          "headline": "Catchy headline (max 60 chars)",
+          "description": "Brief description (max 100 chars)",
+          "adText": "Full ad copy with emojis and hashtags (max 280 chars)",
+          "cta": "Call to action (max 20 chars)",
+          "platform": "tiktok or instagram"
+        }
+      ]
+    }`
+
+    const userPrompt = `Create 5 ad variations for:
+    Product: ${productData.productName}
+    Description: ${productData.productDescription}
+    Target Audience: ${productData.targetAudience || 'General consumers'}
+    Platform: ${productData.platform === 'both' ? 'mix of TikTok and Instagram' : productData.platform}
+    
+    Make each variation unique with different angles (problem/solution, social proof, urgency, transformation, trending).`
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      temperature: 0.8,
+      max_tokens: 2000,
+    })
+
+    const content = response.choices[0].message.content
+    const parsed = JSON.parse(content)
+    
+    if (parsed.variations && Array.isArray(parsed.variations)) {
+      return parsed.variations.map(variation => ({
+        ...variation,
+        imageUrl: null, // Will use product image
+        platform: productData.platform === 'both' ? 
+          (Math.random() > 0.5 ? 'tiktok' : 'instagram') : 
+          productData.platform
+      }))
+    }
+
+    throw new Error('Invalid response format from OpenAI')
+
+  } catch (error) {
+    console.error('Error generating AI ad variations:', error)
+    console.log('Falling back to mock variations')
+    return generateMockVariations(productData)
+  }
+}
+
+const generateMockVariations = (productData) => {
   // Simulate API call delay
-  await new Promise(resolve => setTimeout(resolve, 3000))
-  
-  // In a real implementation, you would call OpenAI API here:
-  /*
-  const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-    baseURL: "https://openrouter.ai/api/v1",
-    dangerouslyAllowBrowser: true,
+  return new Promise(resolve => {
+    setTimeout(() => {
+      const variations = mockAdVariations.map(variation => ({
+        ...variation,
+        headline: variation.headline.replace('Transform Your Life', `Transform Your ${productData.productName} Experience`),
+        platform: productData.platform === 'both' ? 
+          (Math.random() > 0.5 ? 'tiktok' : 'instagram') : 
+          productData.platform
+      })).slice(0, 5)
+      
+      resolve(variations)
+    }, 2000)
   })
+}
 
-  const response = await openai.chat.completions.create({
-    model: "google/gemini-2.0-flash-001",
-    messages: [
-      {
-        role: "system",
-        content: "You are an expert ad copywriter specializing in social media ads for TikTok and Instagram..."
-      },
-      {
-        role: "user", 
-        content: `Create 5 ad variations for: ${productData.productName}. Description: ${productData.productDescription}. Target audience: ${productData.targetAudience || 'General'}. Platform: ${productData.platform}`
-      }
-    ]
-  })
-  */
+// Image generation service
+export const generateAdImage = async (productData, adVariation) => {
+  try {
+    if (!import.meta.env.VITE_OPENAI_API_KEY || import.meta.env.VITE_OPENAI_API_KEY === 'your-openai-api-key') {
+      console.warn('OpenAI API key not configured, cannot generate images')
+      return null
+    }
 
-  // Return mock variations customized for the product
-  return mockAdVariations.map(variation => ({
-    ...variation,
-    headline: variation.headline.replace('Transform Your Life', `Transform Your ${productData.productName} Experience`),
-    platform: productData.platform === 'both' ? (Math.random() > 0.5 ? 'tiktok' : 'instagram') : productData.platform
-  })).slice(0, 5)
+    const prompt = `Create a high-quality, eye-catching social media ad image for ${productData.productName}. 
+    Style: ${adVariation.platform === 'tiktok' ? 'vibrant, trendy, mobile-first' : 'polished, aspirational, Instagram-worthy'}
+    Theme: ${adVariation.headline}
+    Include: Product showcase, modern design, ${adVariation.platform === 'tiktok' ? 'bold colors' : 'aesthetic colors'}
+    Avoid: Text overlays, logos, watermarks
+    Aspect ratio: ${adVariation.platform === 'tiktok' ? '9:16 vertical' : '1:1 square'}`
+
+    const response = await openai.images.generate({
+      model: "dall-e-3",
+      prompt: prompt,
+      n: 1,
+      size: adVariation.platform === 'tiktok' ? "1024x1792" : "1024x1024",
+      quality: "standard",
+    })
+
+    return response.data[0].url
+
+  } catch (error) {
+    console.error('Error generating ad image:', error)
+    return null
+  }
 }
