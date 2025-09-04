@@ -14,7 +14,11 @@
     "react-router-dom": "^6.20.1",
     "lucide-react": "^0.263.1",
     "clsx": "^2.0.0",
-    "openai": "^4.20.1"
+    "openai": "^4.20.1",
+    "@supabase/supabase-js": "^2.39.0",
+    "react-hot-toast": "^2.4.1",
+    "recharts": "^2.8.0",
+    "date-fns": "^2.30.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",
