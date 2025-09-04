@@ -51,7 +51,7 @@ export const generateAdVariations = async (productData) => {
   // In a real implementation, you would call OpenAI API here:
   /*
   const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: import.meta.env.VITE_OPENAI_API_KEY,
     baseURL: "https://openrouter.ai/api/v1",
     dangerouslyAllowBrowser: true,
   })
